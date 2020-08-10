@@ -22,7 +22,7 @@ Acovid <- read.csv(file="covid19estimates.csv")
 
 
 #### Page B
-Bcases <- read.csv(file="casesweekly.csv")
+Bcases <- read.csv(file="postestweekly.csv")
 Bdeaths <- read.csv(file="deathsweekly.csv")
 Bcovid <- read.csv(file="covid19weekly.csv")
 BSE1 <- read.csv(file="SE1weekly.csv")
@@ -30,7 +30,7 @@ Bcode <- read.csv(file="HBcodes.csv")
 
 
 #### Page C
-Cdelta <- read.csv(file="delta.csv")
+Cpep <- read.csv(file="pep.csv")
 
 
 
@@ -50,9 +50,9 @@ ui <- fluidPage(title = "Covid",
                            tags$h3(
                              tags$h3(tags$b("(A) - ", style="color:royalblue"), "A map displaying the estimated proportions of NHS 24 calls classified as Covid-19."),
                              tags$br(),
-                             tags$h3(tags$b("(B) - ", style="color:royalblue"), "Time series plots comparing the temporal trends in the NHS 24 calls, confirmed cases and deaths by Health Board."),
+                             tags$h3(tags$b("(B) - ", style="color:royalblue"), "Time series plots comparing the temporal trends in the NHS 24 calls, proportions of positive tests (cases) and deaths by Health Board."),
                              tags$br(),
-                             tags$h3(tags$b("(C) - ", style="color:royalblue"), "A map displaying the latest changes in the proportions of NHS 24 calls classified as Covid-19.")
+                             tags$h3(tags$b("(C) - ", style="color:royalblue"), "A map displaying the latest posterior excedence probabilties (PEP) for NHS 24 calls classified as Covid-19.")
                            )
 
                            
@@ -66,7 +66,7 @@ ui <- fluidPage(title = "Covid",
                     tabPanel(title = "(A) - Estimated proportions",
                              h2(tags$b("Estimated proportions of calls to NHS 24 being due to Covid-19.", style="color:royalblue")),
                              tags$br(),
-                             sliderInput(inputId="Atime1", label="Week Beginning", min=ymd("2020-03-02"), max=ymd("2020-07-06"), value=ymd("2020-03-02"), step = 7, animate=FALSE, width='80%'),
+                             sliderInput(inputId="Atime1", label="Week Beginning", min=ymd("2020-03-02"), max=ymd("2020-07-27"), value=ymd("2020-03-02"), step = 7, animate=FALSE, width='80%'),
                              leafletOutput("Amap1", height = 600, width='80%')
                     ),
                     
@@ -75,8 +75,8 @@ ui <- fluidPage(title = "Covid",
                     ########################
                     #### Comparison to cases
                     ########################
-                    tabPanel(title = "(B) Comparing NHS 24 calls, cases and deaths",
-                             h2(tags$b("Comparison of the temporal trends in the Covid-19 and SE1 telehealth activity with Covid-19 cases and deaths.", style="color:royalblue")),
+                    tabPanel(title = "(B) Comparing NHS 24 calls, proportions of positive tests (cases) and deaths",
+                             h2(tags$b("Comparison of the temporal trends in the Covid-19 and SE1 telehealth activity with the proportions of positive Covid-19 tests (cases) and Covid-19 related deaths.", style="color:royalblue")),
                              tags$h3("The vertical scale is a measure of propensity, and is the value of the original variable divided by its maximum over the time period."),
                              tags$br(),
                              selectInput(inputId="BHB", label="Select a Health Board", 
@@ -89,15 +89,15 @@ ui <- fluidPage(title = "Covid",
                     
                     
                     
-                    #############################
-                    #### Changes in the last week
-                    #############################
-                    tabPanel(title = "(C) Latest changes in the epidemic",
-                             h2(tags$b("Estimated changes in the epidemic from the penultimate to the last week of the data, as measured by changes in the proportions of calls to NHS 24 classified as Covid-19", style="color:royalblue")),
-                             tags$h3("The penultimate week is the week beginning 29th June 2020 and the last week is the week beginning 6th July."),
+                    #######################################
+                    #### Posterior exceedance probabilities
+                    #######################################
+                    tabPanel(title = "(C) Posterior exceedance probabilities",
+                             h2(tags$b("Posterior probabilities that the estimated proportions of calls to NHS 24 classified as Covid-19 are greater than a given threshold.", style="color:royalblue")),
+                             tags$h3("The map relates to the week beginning 27th July 2020."),
                              tags$br(),
-                             selectInput(inputId="Cdiff", label="Select the statistic to visualise", 
-                                         choices=c("Estimated difference", "Probability the difference is positive")),
+                             selectInput(inputId="Cpeplab", label="Select the statistic to visualise", 
+                                         choices=c("Absolute PEP (0.2)", "Relative PEP (Scottish average)")),
                              tags$br(),
                              leafletOutput("Cmap1", height = 600, width='80%')
 
@@ -187,7 +187,7 @@ server <- function(input, output, session) {
                       temp.covid <- Bcovid[ ,colnames(Bcovid)==as.character(BHBcode())]  
                       temp.SE1 <- BSE1[ ,colnames(BSE1)==as.character(BHBcode())]
                       n.week <- length(temp.SE1)
-                      temp.df <- data.frame(Week=ymd(rep(Bdeaths$Week,4)), Propensity=c(temp.case, temp.deaths, temp.covid, temp.SE1), Event=c(rep("Cases", n.week), rep("Deaths", n.week), rep("NHS 24 Covid-19", n.week), rep("NHS 24 SE1" , n.week)))
+                      temp.df <- data.frame(Week=ymd(rep(Bdeaths$Week,4)), Propensity=c(temp.case, temp.deaths, temp.covid, temp.SE1), Event=c(rep("Positive tests", n.week), rep("Deaths", n.week), rep("NHS 24 Covid-19", n.week), rep("NHS 24 SE1" , n.week)))
     return(temp.df)  
     })
     
@@ -197,7 +197,7 @@ server <- function(input, output, session) {
     timeplotB <- reactive({ggplot(Bdata(), aes(x=Week, y=Propensity, group=Event)) +
       geom_line(aes(color=Event)) +
       scale_colour_discrete(name  ="Event type") +
-      scale_x_date(date_labels = "%d-%m-%Y", breaks = as.Date(c("2020-03-02", "2020-04-06", "2020-05-04", "2020-06-01", "2020-07-06"))) + 
+      scale_x_date(date_labels = "%d-%m-%Y", breaks = as.Date(c("2020-03-02", "2020-04-06", "2020-05-04", "2020-06-01", "2020-07-06", "2020-07-27"))) + 
       scale_y_continuous(name="Covid-19 propensity") + 
       theme(text=element_text(size=16), plot.title=element_text(size=16, face="bold"))}) 
     output$Bplot <- renderPlot(timeplotB())
@@ -208,32 +208,31 @@ server <- function(input, output, session) {
     #### page C - Maps of differences
     #################################
     #### Create the spatialpolygondataframe
-    CPDfinal <- reactive({merge(x=PDfinal, y=Cdelta, by.x="District", by.y="Post.Code", all.x=FALSE)})
+    CPDfinal <- reactive({merge(x=PDfinal, y=Cpep, by.x="District", by.y="Post.Code", all.x=FALSE)})
     
     
     #### Specify the min and max scales for the map
     Cminmax <- reactive({
-                      if(input$Cdiff == "Estimated difference")
+                      if(input$Cpeplab == "Absolute PEP (0.2)")
                       {
-                      Cmintemp1 <- min(Cdelta$covidest)
-                      Cmaxtemp1 <- max(Cdelta$covidest) 
+                      Cmintemp1 <- min(Cpep$absolute)
+                      Cmaxtemp1 <- max(Cpep$absolute) 
                       }else
                       {
-                      Cmintemp1 <- min(Cdelta$covidprobinc)
-                      Cmaxtemp1 <- max(Cdelta$covidprobinc) 
+                      Cmintemp1 <- min(Cpep$relative)
+                      Cmaxtemp1 <- max(Cpep$relative) 
                       }
                       return(c(Cmintemp1, Cmaxtemp1))
     })
 
-    
     #### Create the variables
     Cvarcovid <- reactive({
-                          if(input$Cdiff == "Estimated difference")
+                          if(input$Cpeplab == "Absolute PEP (0.2)")
                           {
-                          Ctemp1 <- CPDfinal()@data$covidest   
+                          Ctemp1 <- CPDfinal()@data$absolute   
                           }else
                           {
-                          Ctemp1 <- CPDfinal()@data$covidprobinc  
+                          Ctemp1 <- CPDfinal()@data$relative  
                           }
                           return(Ctemp1)  
     })
